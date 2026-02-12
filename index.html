@@ -1,0 +1,2379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Design Shapes - Architecture Profile Visualizer</title>
+    <meta name="description" content="Interactive visualization comparing 20 common system design patterns across 9 architectural dimensions">
+
+    <!-- React 18.3.1 from unpkg (latest stable) -->
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+    <!-- Babel Standalone from unpkg -->
+    <script src="https://unpkg.com/@babel/standalone@7.24.4/babel.min.js"></script>
+    <!-- D3.js from unpkg -->
+    <script src="https://unpkg.com/d3@7.9.0/dist/d3.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        #root {
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 24px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 12px;
+            }
+        }
+
+        /* Smooth transitions for theme changes */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // ========== CONSTANTS ==========
+
+        const THEMES = {
+            light: {
+                bg: '#ffffff',
+                bgSecondary: '#f5f5f5',
+                bgCard: '#ffffff',
+                text: '#1a1a1a',
+                textSecondary: '#666666',
+                border: '#e0e0e0',
+                gridLine: '#d0d0d0',
+                shadow: 'rgba(0, 0, 0, 0.1)',
+                badgeGreen: '#10b981',
+                badgeYellow: '#f59e0b',
+                badgeBlue: '#3b82f6',
+                badgeGreenBg: '#d1fae5',
+                badgeYellowBg: '#fef3c7',
+                badgeBlueBg: '#dbeafe',
+            },
+            dark: {
+                bg: '#0f0f0f',
+                bgSecondary: '#1a1a1a',
+                bgCard: '#1f1f1f',
+                text: '#e5e5e5',
+                textSecondary: '#a3a3a3',
+                border: '#333333',
+                gridLine: '#404040',
+                shadow: 'rgba(0, 0, 0, 0.5)',
+                badgeGreen: '#34d399',
+                badgeYellow: '#fbbf24',
+                badgeBlue: '#60a5fa',
+                badgeGreenBg: '#064e3b',
+                badgeYellowBg: '#78350f',
+                badgeBlueBg: '#1e3a8a',
+            }
+        };
+
+        const BREAKPOINTS = {
+            sm: 480,
+            md: 768,
+            lg: 1024
+        };
+
+        const DIMENSIONS = [
+            { key: 'scale', label: 'Scale', icon: '📊', description: 'Expected number of users/requests' },
+            { key: 'readWrite', label: 'Read/Write Ratio', icon: '⚖️', description: 'Balance between read and write operations' },
+            { key: 'consistency', label: 'Consistency', icon: '🔒', description: 'Data consistency requirements' },
+            { key: 'latency', label: 'Latency', icon: '⚡', description: 'Response time requirements' },
+            { key: 'dataVolume', label: 'Data Volume', icon: '💾', description: 'Amount of data to store/process' },
+            { key: 'failureTolerance', label: 'Failure Tolerance', icon: '🛡️', description: 'Resilience to failures' },
+            { key: 'geoDistribution', label: 'Geo Distribution', icon: '🌍', description: 'Geographic spread of users' },
+            { key: 'costPressure', label: 'Cost Pressure', icon: '💰', description: 'Budget constraints' },
+            { key: 'changeVelocity', label: 'Change Velocity', icon: '🚀', description: 'Rate of feature changes' }
+        ];
+
+        // ========== SYSTEM DATA ==========
+
+        const SYSTEMS = [
+            {
+                id: 'url-shortener',
+                name: 'URL Shortener',
+                icon: '🔗',
+                color: '#3b82f6',
+                examples: 'bit.ly, TinyURL',
+                scores: { scale: 4, readWrite: 5, consistency: 3, latency: 5, dataVolume: 2, failureTolerance: 4, geoDistribution: 4, costPressure: 4, changeVelocity: 2 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Read-heavy caching with CDN distribution handles millions of redirects per second.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Fast in-memory cache for URL lookups' },
+                            { name: 'Cloudflare', url: 'https://www.cloudflare.com/', rationale: 'Global CDN for edge caching' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Extreme read skew (99:1) allows aggressive caching and read replicas.',
+                        tools: [
+                            { name: 'Varnish', url: 'https://varnish-cache.org/', rationale: 'HTTP accelerator for caching redirects' },
+                            { name: 'PostgreSQL Read Replicas', url: 'https://www.postgresql.org/', rationale: 'Scale reads across multiple nodes' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency acceptable - URL updates can take seconds to propagate globally.',
+                        tools: [
+                            { name: 'DynamoDB', url: 'https://aws.amazon.com/dynamodb/', rationale: 'Eventually consistent KV store' },
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'Tunable consistency for global distribution' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-50ms redirects critical for user experience; use edge caching and fast KV stores.',
+                        tools: [
+                            { name: 'Cloudflare Workers', url: 'https://workers.cloudflare.com/', rationale: 'Edge compute for instant redirects' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Microsecond latency lookups' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Small records (URL + metadata) allow efficient storage in KV stores or simple databases.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Efficient storage for small key-value pairs' },
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'Handles billions of URL mappings efficiently' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Multi-region deployment with health checks and automatic failover ensures 99.9% uptime.',
+                        tools: [
+                            { name: 'AWS Route 53', url: 'https://aws.amazon.com/route53/', rationale: 'DNS-based failover and health checks' },
+                            { name: 'Consul', url: 'https://www.consul.io/', rationale: 'Service discovery and health monitoring' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Global CDN with geo-routing reduces latency for international users.',
+                        tools: [
+                            { name: 'Cloudflare', url: 'https://www.cloudflare.com/', rationale: '300+ edge locations worldwide' },
+                            { name: 'AWS Global Accelerator', url: 'https://aws.amazon.com/global-accelerator/', rationale: 'Optimized global routing' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'High volume with thin margins demands efficient caching and serverless architecture.',
+                        tools: [
+                            { name: 'Cloudflare Workers', url: 'https://workers.cloudflare.com/', rationale: 'Pay-per-request serverless model' },
+                            { name: 'DynamoDB', url: 'https://aws.amazon.com/dynamodb/', rationale: 'Pay-per-request pricing for variable load' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Stable core service with infrequent updates; focus on reliability over rapid iteration.',
+                        tools: [
+                            { name: 'Blue-Green Deployment', url: 'https://martinfowler.com/bliki/BlueGreenDeployment.html', rationale: 'Zero-downtime releases for stable services' },
+                            { name: 'Terraform', url: 'https://www.terraform.io/', rationale: 'Infrastructure as code for controlled changes' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'payment-system',
+                name: 'Payment System',
+                icon: '💳',
+                color: '#10b981',
+                examples: 'Stripe, PayPal',
+                scores: { scale: 4, readWrite: 2, consistency: 5, latency: 4, dataVolume: 3, failureTolerance: 5, geoDistribution: 3, costPressure: 2, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Handles millions of transactions daily with auto-scaling and database sharding.',
+                        tools: [
+                            { name: 'Vitess', url: 'https://vitess.io/', rationale: 'MySQL sharding for horizontal scaling' },
+                            { name: 'Kubernetes HPA', url: 'https://kubernetes.io/', rationale: 'Auto-scale based on transaction volume' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Write-heavy with complex transactions requiring ACID guarantees and idempotency.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'ACID transactions for payment integrity' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Durable event log for transaction replay' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong consistency mandatory - no double charges, no lost payments. Use distributed transactions.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'SERIALIZABLE isolation level' },
+                            { name: 'Saga Pattern', url: 'https://microservices.io/patterns/data/saga.html', rationale: 'Distributed transaction coordination' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-second payment confirmation expected; use optimistic locking and async processing.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Fast pre-authorization checks' },
+                            { name: 'SQS', url: 'https://aws.amazon.com/sqs/', rationale: 'Async processing for non-critical steps' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Moderate volume with complex relationships; use relational DB with archival strategy.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'Complex queries and ACID guarantees' },
+                            { name: 'S3 Glacier', url: 'https://aws.amazon.com/s3/glacier/', rationale: 'Archive old transactions cheaply' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Mission-critical: multi-region active-active, circuit breakers, and comprehensive monitoring.',
+                        tools: [
+                            { name: 'Resilience4j', url: 'https://resilience4j.readme.io/', rationale: 'Circuit breaker and retry patterns' },
+                            { name: 'CockroachDB', url: 'https://www.cockroachlabs.com/', rationale: 'Survives region failures automatically' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional compliance (PCI DSS) requires data residency; use regional clusters.',
+                        tools: [
+                            { name: 'AWS Regions', url: 'https://aws.amazon.com/about-aws/global-infrastructure/', rationale: 'Data residency compliance' },
+                            { name: 'Stripe', url: 'https://stripe.com/', rationale: 'Built-in multi-region compliance' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'High transaction value justifies premium infrastructure for reliability.',
+                        tools: [
+                            { name: 'AWS RDS Multi-AZ', url: 'https://aws.amazon.com/rds/', rationale: 'High availability worth the cost' },
+                            { name: 'DataDog', url: 'https://www.datadoghq.com/', rationale: 'Premium monitoring for financial systems' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Moderate pace with extensive testing; use feature flags and canary deployments.',
+                        tools: [
+                            { name: 'LaunchDarkly', url: 'https://launchdarkly.com/', rationale: 'Feature flags for gradual rollouts' },
+                            { name: 'Spinnaker', url: 'https://spinnaker.io/', rationale: 'Automated canary analysis' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'social-feed',
+                name: 'Social Media Feed',
+                icon: '📱',
+                color: '#8b5cf6',
+                examples: 'Twitter, Instagram',
+                scores: { scale: 5, readWrite: 4, consistency: 2, latency: 4, dataVolume: 5, failureTolerance: 3, geoDistribution: 5, costPressure: 3, changeVelocity: 5 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of feed reads daily require distributed caching and fanout optimization.',
+                        tools: [
+                            { name: 'Redis Cluster', url: 'https://redis.io/docs/management/scaling/', rationale: 'Distributed cache for hot feeds' },
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'Write-optimized storage for feed entries' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Read-heavy with occasional writes; use write-time fanout for popular users, read-time for others.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Cache pre-computed feeds' },
+                            { name: 'ElasticSearch', url: 'https://www.elastic.co/', rationale: 'Fast read-time feed aggregation' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency acceptable - stale feeds for seconds are tolerable for UX.',
+                        tools: [
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'Tunable consistency with AP bias' },
+                            { name: 'DynamoDB', url: 'https://aws.amazon.com/dynamodb/', rationale: 'Eventually consistent reads' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-200ms feed load critical for engagement; use CDN and multi-level caching.',
+                        tools: [
+                            { name: 'Fastly', url: 'https://www.fastly.com/', rationale: 'Edge caching for feed content' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'In-memory feed cache' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Petabytes of posts, media, and relationships; use object storage and time-based sharding.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Store billions of media files' },
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'Time-series data for feed entries' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Degraded service acceptable; use graceful degradation and circuit breakers.',
+                        tools: [
+                            { name: 'Hystrix', url: 'https://github.com/Netflix/Hystrix', rationale: 'Fallback to cached content on failure' },
+                            { name: 'Envoy', url: 'https://www.envoyproxy.io/', rationale: 'Service mesh with automatic retries' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Global user base requires multi-region deployment with geo-aware routing.',
+                        tools: [
+                            { name: 'AWS Global Accelerator', url: 'https://aws.amazon.com/global-accelerator/', rationale: 'Low-latency global routing' },
+                            { name: 'Cassandra Multi-DC', url: 'https://cassandra.apache.org/', rationale: 'Cross-region replication' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Ad-supported model allows moderate infrastructure spend; optimize caching and CDN.',
+                        tools: [
+                            { name: 'Cloudflare', url: 'https://www.cloudflare.com/', rationale: 'Free tier CDN for static content' },
+                            { name: 'Spot Instances', url: 'https://aws.amazon.com/ec2/spot/', rationale: 'Reduce compute costs for batch jobs' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Rapid experimentation with A/B testing and daily deployments for competitive edge.',
+                        tools: [
+                            { name: 'Optimizely', url: 'https://www.optimizely.com/', rationale: 'A/B testing platform for feature experiments' },
+                            { name: 'ArgoCD', url: 'https://argo-cd.readthedocs.io/', rationale: 'GitOps for rapid Kubernetes deployments' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'chat-app',
+                name: 'Real-Time Chat',
+                icon: '💬',
+                color: '#f59e0b',
+                examples: 'WhatsApp, Slack',
+                scores: { scale: 5, readWrite: 3, consistency: 4, latency: 5, dataVolume: 4, failureTolerance: 4, geoDistribution: 4, costPressure: 3, changeVelocity: 4 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Millions of concurrent WebSocket connections require connection pooling and horizontal scaling.',
+                        tools: [
+                            { name: 'Socket.io', url: 'https://socket.io/', rationale: 'Scalable WebSocket framework with Redis adapter' },
+                            { name: 'Kubernetes', url: 'https://kubernetes.io/', rationale: 'Auto-scale connection servers' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Balanced read/write with real-time delivery; use message queues and persistent connections.',
+                        tools: [
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Durable message queue for chat history' },
+                            { name: 'Redis Pub/Sub', url: 'https://redis.io/docs/manual/pubsub/', rationale: 'Real-time message broadcasting' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong ordering within conversations; use sequence numbers and optimistic updates.',
+                        tools: [
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Guaranteed message ordering per partition' },
+                            { name: 'Snowflake IDs', url: 'https://en.wikipedia.org/wiki/Snowflake_ID', rationale: 'Sortable unique message IDs' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-100ms message delivery critical; use WebSockets, edge servers, and in-memory routing.',
+                        tools: [
+                            { name: 'WebRTC', url: 'https://webrtc.org/', rationale: 'Peer-to-peer for lowest latency' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'In-memory message routing' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Large message history with media attachments; use tiered storage and compression.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Store media attachments' },
+                            { name: 'ScyllaDB', url: 'https://www.scylladb.com/', rationale: 'Fast access to recent message history' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'High availability with message queue persistence and connection recovery.',
+                        tools: [
+                            { name: 'RabbitMQ', url: 'https://www.rabbitmq.com/', rationale: 'Durable message queues with HA' },
+                            { name: 'HAProxy', url: 'http://www.haproxy.org/', rationale: 'Load balancing with health checks' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional deployments with message relay for cross-region conversations.',
+                        tools: [
+                            { name: 'NATS', url: 'https://nats.io/', rationale: 'Global message mesh for cross-region routing' },
+                            { name: 'Cloudflare Durable Objects', url: 'https://developers.cloudflare.com/durable-objects/', rationale: 'Edge-based stateful WebSocket handling' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'High connection costs; optimize with connection pooling and efficient protocols.',
+                        tools: [
+                            { name: 'MQTT', url: 'https://mqtt.org/', rationale: 'Lightweight protocol for mobile clients' },
+                            { name: 'gRPC', url: 'https://grpc.io/', rationale: 'Efficient binary protocol with streaming' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Frequent feature updates require backward-compatible protocol and versioned APIs.',
+                        tools: [
+                            { name: 'Protobuf', url: 'https://protobuf.dev/', rationale: 'Backward-compatible schema evolution' },
+                            { name: 'Feature Flags', url: 'https://martinfowler.com/articles/feature-toggles.html', rationale: 'Gradual feature rollout to users' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'video-streaming',
+                name: 'Video Streaming',
+                icon: '📺',
+                color: '#ef4444',
+                examples: 'Netflix, YouTube',
+                scores: { scale: 5, readWrite: 5, consistency: 2, latency: 4, dataVolume: 5, failureTolerance: 3, geoDistribution: 5, costPressure: 4, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of video views daily require massive CDN infrastructure and adaptive bitrate streaming.',
+                        tools: [
+                            { name: 'Akamai CDN', url: 'https://www.akamai.com/', rationale: 'Global video delivery network' },
+                            { name: 'HLS', url: 'https://developer.apple.com/streaming/', rationale: 'Adaptive bitrate streaming protocol' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Extreme read dominance (99.9:0.1); aggressive CDN caching with origin shielding.',
+                        tools: [
+                            { name: 'CloudFront', url: 'https://aws.amazon.com/cloudfront/', rationale: 'CDN with origin shield to reduce origin load' },
+                            { name: 'Varnish', url: 'https://varnish-cache.org/', rationale: 'HTTP cache layer before origin' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency fine for catalog updates; stale recommendations acceptable for hours.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Eventually consistent object storage for videos' },
+                            { name: 'DynamoDB', url: 'https://aws.amazon.com/dynamodb/', rationale: 'Eventually consistent metadata lookups' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Low initial latency (<1s) critical; use edge caching, video preloading, and CDN optimization.',
+                        tools: [
+                            { name: 'CloudFlare Stream', url: 'https://www.cloudflare.com/products/cloudflare-stream/', rationale: 'Edge-optimized video delivery' },
+                            { name: 'FFmpeg', url: 'https://ffmpeg.org/', rationale: 'Generate multiple bitrate versions for fast start' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Exabytes of video content require tiered storage with lifecycle policies and compression.',
+                        tools: [
+                            { name: 'S3 Intelligent-Tiering', url: 'https://aws.amazon.com/s3/storage-classes/intelligent-tiering/', rationale: 'Automatic cost optimization for video archives' },
+                            { name: 'H.265 (HEVC)', url: 'https://en.wikipedia.org/wiki/High_Efficiency_Video_Coding', rationale: 'Advanced compression for storage savings' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Buffering tolerable during failures; use multi-CDN and graceful degradation.',
+                        tools: [
+                            { name: 'Multi-CDN', url: 'https://www.cdnetworks.com/multi-cdn/', rationale: 'Automatic failover between CDN providers' },
+                            { name: 'HLS', url: 'https://developer.apple.com/streaming/', rationale: 'Client-side adaptive bitrate handles network issues' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Global content delivery with geo-blocking and regional CDN pops for low latency.',
+                        tools: [
+                            { name: 'Akamai', url: 'https://www.akamai.com/', rationale: '4000+ edge locations worldwide' },
+                            { name: 'AWS MediaStore', url: 'https://aws.amazon.com/mediastore/', rationale: 'Regional video origin infrastructure' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Bandwidth dominates costs; use compression, smart caching, and peer-assisted delivery.',
+                        tools: [
+                            { name: 'WebTorrent', url: 'https://webtorrent.io/', rationale: 'P2P video delivery to reduce CDN costs' },
+                            { name: 'VP9/AV1', url: 'https://en.wikipedia.org/wiki/AV1', rationale: 'Better compression = lower bandwidth costs' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Stable playback infrastructure with moderate updates for encoding and UI features.',
+                        tools: [
+                            { name: 'Docker', url: 'https://www.docker.com/', rationale: 'Containerize encoding pipelines for consistency' },
+                            { name: 'Blue-Green Deployment', url: 'https://martinfowler.com/bliki/BlueGreenDeployment.html', rationale: 'Zero-downtime API updates' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'ride-sharing',
+                name: 'Ride Sharing',
+                icon: '🚗',
+                color: '#06b6d4',
+                examples: 'Uber, Lyft',
+                scores: { scale: 5, readWrite: 3, consistency: 4, latency: 5, dataVolume: 4, failureTolerance: 5, geoDistribution: 4, costPressure: 3, changeVelocity: 4 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Millions of concurrent rides require geospatial indexing and efficient matching algorithms.',
+                        tools: [
+                            { name: 'Redis Geo', url: 'https://redis.io/docs/manual/data-types/geospatial/', rationale: 'Fast radius searches for nearby drivers' },
+                            { name: 'PostGIS', url: 'https://postgis.net/', rationale: 'Geospatial queries in PostgreSQL' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'High write volume from location updates; use time-series DB and update batching.',
+                        tools: [
+                            { name: 'TimescaleDB', url: 'https://www.timescale.com/', rationale: 'Optimized for location time-series data' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Buffer location updates before writing' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong consistency for matching to prevent double-booking; eventual for location updates.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'Transactions for ride matching' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Eventually consistent location cache' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-second matching and real-time location updates critical for UX; use in-memory processing.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'In-memory geospatial matching' },
+                            { name: 'WebSockets', url: 'https://developer.mozilla.org/en-US/docs/Web/API/WebSocket', rationale: 'Real-time bidirectional updates' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Large historical ride and location data; use partitioning by time and region.',
+                        tools: [
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'Time-series partitioning for location history' },
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Archive old ride data' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Mission-critical service requires multi-region active-active and circuit breakers.',
+                        tools: [
+                            { name: 'CockroachDB', url: 'https://www.cockroachlabs.com/', rationale: 'Survives datacenter failures' },
+                            { name: 'Istio', url: 'https://istio.io/', rationale: 'Service mesh with automatic retries' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'City-specific deployments with regional routing to minimize matching latency.',
+                        tools: [
+                            { name: 'H3', url: 'https://h3geo.org/', rationale: 'Geospatial indexing for efficient city partitioning' },
+                            { name: 'AWS Local Zones', url: 'https://aws.amazon.com/about-aws/global-infrastructure/localzones/', rationale: 'Deploy closer to major cities' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Competitive market requires cost optimization; use spot instances and efficient routing.',
+                        tools: [
+                            { name: 'Kubernetes Cluster Autoscaler', url: 'https://github.com/kubernetes/autoscaler', rationale: 'Scale down during off-peak hours' },
+                            { name: 'OSRM', url: 'http://project-osrm.org/', rationale: 'Open-source routing engine' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Rapid feature development with pricing experiments and dynamic routing algorithms.',
+                        tools: [
+                            { name: 'LaunchDarkly', url: 'https://launchdarkly.com/', rationale: 'Feature flags for pricing experiments' },
+                            { name: 'Spinnaker', url: 'https://spinnaker.io/', rationale: 'Continuous delivery pipeline' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'e-commerce',
+                name: 'E-Commerce',
+                icon: '🛒',
+                color: '#ec4899',
+                examples: 'Amazon, Shopify',
+                scores: { scale: 5, readWrite: 4, consistency: 4, latency: 3, latency: 3, dataVolume: 4, failureTolerance: 4, geoDistribution: 4, costPressure: 3, changeVelocity: 4 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Flash sales and holiday traffic spikes require auto-scaling and queue-based processing.',
+                        tools: [
+                            { name: 'AWS Auto Scaling', url: 'https://aws.amazon.com/autoscaling/', rationale: 'Handle traffic spikes automatically' },
+                            { name: 'SQS', url: 'https://aws.amazon.com/sqs/', rationale: 'Queue order processing during peak load' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Read-heavy browsing with write spikes during checkout; use caching and read replicas.',
+                        tools: [
+                            { name: 'Varnish', url: 'https://varnish-cache.org/', rationale: 'Cache product pages and catalogs' },
+                            { name: 'Aurora Read Replicas', url: 'https://aws.amazon.com/rds/aurora/', rationale: 'Scale product catalog reads' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong consistency for inventory and orders; eventual for product recommendations.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'ACID transactions for order processing' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Eventually consistent product catalog cache' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Fast product page loads (<1s) improve conversion; use CDN and aggressive caching.',
+                        tools: [
+                            { name: 'Cloudflare', url: 'https://www.cloudflare.com/', rationale: 'Edge caching for static assets and images' },
+                            { name: 'ElastiCache', url: 'https://aws.amazon.com/elasticache/', rationale: 'Cache session and product data' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Large product catalog with images and user data; use CDN for media and DB sharding.',
+                        tools: [
+                            { name: 'Imgix', url: 'https://imgix.com/', rationale: 'Image CDN with on-the-fly optimization' },
+                            { name: 'Vitess', url: 'https://vitess.io/', rationale: 'Shard product database by category' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Lost sales costly; use multi-AZ deployment, retries, and graceful degradation.',
+                        tools: [
+                            { name: 'AWS Multi-AZ', url: 'https://aws.amazon.com/rds/features/multi-az/', rationale: 'Database high availability' },
+                            { name: 'Circuit Breaker', url: 'https://martinfowler.com/bliki/CircuitBreaker.html', rationale: 'Graceful degradation of non-critical features' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Multi-region for global customers with localized inventory and pricing.',
+                        tools: [
+                            { name: 'Route 53 Geolocation', url: 'https://aws.amazon.com/route53/', rationale: 'Route users to nearest region' },
+                            { name: 'DynamoDB Global Tables', url: 'https://aws.amazon.com/dynamodb/global-tables/', rationale: 'Multi-region product catalog' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Tight margins require cost optimization; use spot instances and smart caching.',
+                        tools: [
+                            { name: 'Spot Instances', url: 'https://aws.amazon.com/ec2/spot/', rationale: 'Reduce compute costs for batch jobs' },
+                            { name: 'CloudFront', url: 'https://aws.amazon.com/cloudfront/', rationale: 'Reduce origin load with CDN caching' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Frequent promotions and A/B tests require feature flags and rapid deployments.',
+                        tools: [
+                            { name: 'Optimizely', url: 'https://www.optimizely.com/', rationale: 'A/B test pricing and UX changes' },
+                            { name: 'GitHub Actions', url: 'https://github.com/features/actions', rationale: 'CI/CD for rapid releases' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'search-engine',
+                name: 'Search Engine',
+                icon: '🔍',
+                color: '#14b8a6',
+                examples: 'Google, Bing',
+                scores: { scale: 5, readWrite: 4, consistency: 2, latency: 5, dataVolume: 5, failureTolerance: 3, geoDistribution: 5, costPressure: 3, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of queries daily require massive distributed indexing and query serving infrastructure.',
+                        tools: [
+                            { name: 'Elasticsearch Cluster', url: 'https://www.elastic.co/', rationale: 'Distributed full-text search at scale' },
+                            { name: 'Apache Solr', url: 'https://solr.apache.org/', rationale: 'Scalable search platform' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Read-heavy queries with batch index updates; use sharding and replica sets.',
+                        tools: [
+                            { name: 'Elasticsearch', url: 'https://www.elastic.co/', rationale: 'Shard index across nodes, replicate for reads' },
+                            { name: 'MapReduce', url: 'https://hadoop.apache.org/', rationale: 'Batch process web crawl data' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency acceptable - index updates can lag by minutes without UX impact.',
+                        tools: [
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Eventually consistent index update pipeline' },
+                            { name: 'Elasticsearch', url: 'https://www.elastic.co/', rationale: 'Near real-time search with refresh intervals' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-100ms query response critical for UX; use caching, query optimization, and edge serving.',
+                        tools: [
+                            { name: 'Varnish', url: 'https://varnish-cache.org/', rationale: 'Cache popular query results' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'In-memory autocomplete suggestions' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Petabytes of crawled web data require distributed file systems and compression.',
+                        tools: [
+                            { name: 'HDFS', url: 'https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html', rationale: 'Distributed storage for crawl data' },
+                            { name: 'Parquet', url: 'https://parquet.apache.org/', rationale: 'Compressed columnar storage' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Degraded results acceptable; use replica shards and stale cache fallbacks.',
+                        tools: [
+                            { name: 'Elasticsearch Replicas', url: 'https://www.elastic.co/', rationale: 'Serve queries even if some shards fail' },
+                            { name: 'CDN', url: 'https://www.cloudflare.com/', rationale: 'Serve cached results during outages' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Global query serving with regional index replicas for low latency.',
+                        tools: [
+                            { name: 'Elasticsearch Cross-Cluster', url: 'https://www.elastic.co/', rationale: 'Replicate index to multiple regions' },
+                            { name: 'Anycast DNS', url: 'https://en.wikipedia.org/wiki/Anycast', rationale: 'Route to nearest query server' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Ad-supported model allows significant infrastructure investment; optimize with caching.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Cache popular queries to reduce index load' },
+                            { name: 'Bloom Filters', url: 'https://en.wikipedia.org/wiki/Bloom_filter', rationale: 'Quick negative lookups save index queries' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Ranking algorithm updates frequent; use shadow traffic and gradual rollouts.',
+                        tools: [
+                            { name: 'MLflow', url: 'https://mlflow.org/', rationale: 'Version and deploy ranking models' },
+                            { name: 'Argo Rollouts', url: 'https://argoproj.github.io/rollouts/', rationale: 'Progressive ranking algorithm deployment' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'email-service',
+                name: 'Email Service',
+                icon: '📧',
+                color: '#a855f7',
+                examples: 'Gmail, Outlook',
+                scores: { scale: 5, readWrite: 3, consistency: 4, latency: 3, dataVolume: 5, failureTolerance: 4, geoDistribution: 4, costPressure: 3, changeVelocity: 2 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of emails daily require distributed storage and efficient SMTP routing.',
+                        tools: [
+                            { name: 'Postfix', url: 'http://www.postfix.org/', rationale: 'High-performance SMTP server' },
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'Distributed storage for email metadata' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Balanced read/write with batch processing for spam filtering and indexing.',
+                        tools: [
+                            { name: 'Elasticsearch', url: 'https://www.elastic.co/', rationale: 'Index emails for fast search' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Queue emails for async processing' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong consistency for email delivery; eventual for folder sync across devices.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'ACID guarantees for email delivery' },
+                            { name: 'CRDT', url: 'https://crdt.tech/', rationale: 'Conflict-free folder sync' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Fast search and folder navigation expected; use indexing and caching.',
+                        tools: [
+                            { name: 'Elasticsearch', url: 'https://www.elastic.co/', rationale: 'Sub-second email search' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Cache recent emails and folder structures' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Petabytes of email data with attachments; use object storage and tiered archival.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Store email attachments' },
+                            { name: 'Glacier', url: 'https://aws.amazon.com/glacier/', rationale: 'Archive old emails cheaply' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'High availability critical; use multi-region replication and message queues.',
+                        tools: [
+                            { name: 'RabbitMQ', url: 'https://www.rabbitmq.com/', rationale: 'Durable queue for email delivery' },
+                            { name: 'Multi-Master Replication', url: 'https://en.wikipedia.org/wiki/Multi-master_replication', rationale: 'Sync across datacenters' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional deployments with SMTP relay for cross-region delivery.',
+                        tools: [
+                            { name: 'AWS SES', url: 'https://aws.amazon.com/ses/', rationale: 'Regional email sending service' },
+                            { name: 'SMTP Relay', url: 'https://en.wikipedia.org/wiki/SMTP', rationale: 'Route emails between regions' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Storage dominates costs; use compression, deduplication, and tiered storage.',
+                        tools: [
+                            { name: 'Zstandard', url: 'https://facebook.github.io/zstd/', rationale: 'Compress email bodies and attachments' },
+                            { name: 'Content-Addressable Storage', url: 'https://en.wikipedia.org/wiki/Content-addressable_storage', rationale: 'Deduplicate attachments' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Stable core with infrequent protocol changes; focus on reliability over features.',
+                        tools: [
+                            { name: 'Blue-Green Deployment', url: 'https://martinfowler.com/bliki/BlueGreenDeployment.html', rationale: 'Zero-downtime SMTP updates' },
+                            { name: 'Terraform', url: 'https://www.terraform.io/', rationale: 'Infrastructure as code for stable deployments' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'food-delivery',
+                name: 'Food Delivery',
+                icon: '🍔',
+                color: '#f97316',
+                examples: 'DoorDash, Uber Eats',
+                scores: { scale: 4, readWrite: 3, consistency: 4, latency: 4, dataVolume: 3, failureTolerance: 5, geoDistribution: 3, costPressure: 4, changeVelocity: 4 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Peak meal times require elastic scaling and efficient order routing algorithms.',
+                        tools: [
+                            { name: 'Kubernetes HPA', url: 'https://kubernetes.io/', rationale: 'Auto-scale during lunch/dinner rushes' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Fast order matching and routing' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Balanced read/write with real-time order tracking and status updates.',
+                        tools: [
+                            { name: 'WebSockets', url: 'https://developer.mozilla.org/en-US/docs/Web/API/WebSocket', rationale: 'Push order status updates to users' },
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'Store order state and history' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong consistency for order placement and payment; eventual for driver location.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'ACID transactions for orders' },
+                            { name: 'Redis Geo', url: 'https://redis.io/docs/manual/data-types/geospatial/', rationale: 'Eventually consistent driver locations' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Fast order confirmation and driver matching critical; use in-memory caching and geospatial indexes.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'In-memory order queue and driver matching' },
+                            { name: 'PostGIS', url: 'https://postgis.net/', rationale: 'Fast geospatial queries for nearby restaurants' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Moderate order data with location history; use time-series partitioning.',
+                        tools: [
+                            { name: 'TimescaleDB', url: 'https://www.timescale.com/', rationale: 'Time-series storage for location history' },
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Archive old order data' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Order loss unacceptable; use message queues, retries, and multi-AZ deployment.',
+                        tools: [
+                            { name: 'SQS', url: 'https://aws.amazon.com/sqs/', rationale: 'Durable queue for order processing' },
+                            { name: 'Circuit Breaker', url: 'https://martinfowler.com/bliki/CircuitBreaker.html', rationale: 'Graceful degradation of non-critical features' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'City-specific deployments with regional databases for low-latency matching.',
+                        tools: [
+                            { name: 'Regional Databases', url: 'https://aws.amazon.com/rds/', rationale: 'Deploy database per city or region' },
+                            { name: 'GeoDNS', url: 'https://en.wikipedia.org/wiki/GeoDNS', rationale: 'Route to nearest API server' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Thin margins require cost optimization; use spot instances and efficient routing.',
+                        tools: [
+                            { name: 'Spot Instances', url: 'https://aws.amazon.com/ec2/spot/', rationale: 'Reduce compute costs for batch processing' },
+                            { name: 'OSRM', url: 'http://project-osrm.org/', rationale: 'Open-source routing to avoid API costs' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Frequent promotions and dynamic pricing require feature flags and A/B testing.',
+                        tools: [
+                            { name: 'LaunchDarkly', url: 'https://launchdarkly.com/', rationale: 'Feature flags for promotions and pricing' },
+                            { name: 'Optimizely', url: 'https://www.optimizely.com/', rationale: 'A/B test UX and pricing changes' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'news-aggregator',
+                name: 'News Aggregator',
+                icon: '📰',
+                color: '#64748b',
+                examples: 'Reddit, Hacker News',
+                scores: { scale: 4, readWrite: 4, consistency: 2, latency: 3, dataVolume: 4, failureTolerance: 3, geoDistribution: 3, costPressure: 4, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Viral content spikes require caching layers and efficient ranking algorithms.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Cache hot stories and ranking scores' },
+                            { name: 'Varnish', url: 'https://varnish-cache.org/', rationale: 'HTTP cache for story pages' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Balanced with voting spikes; use write buffering and materialized views for rankings.',
+                        tools: [
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Buffer vote events for batch processing' },
+                            { name: 'PostgreSQL Materialized Views', url: 'https://www.postgresql.org/', rationale: 'Pre-compute trending story rankings' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency fine for vote counts and rankings; stale data acceptable.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Eventually consistent vote counters' },
+                            { name: 'DynamoDB', url: 'https://aws.amazon.com/dynamodb/', rationale: 'Eventually consistent story metadata' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Fast page loads important for engagement; use CDN and pre-computed rankings.',
+                        tools: [
+                            { name: 'Cloudflare', url: 'https://www.cloudflare.com/', rationale: 'Edge caching for static pages' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Cache top stories and user feeds' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Large archive of stories and comments; use full-text search and time-based sharding.',
+                        tools: [
+                            { name: 'Elasticsearch', url: 'https://www.elastic.co/', rationale: 'Full-text search across stories and comments' },
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'Partition tables by submission date' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Degraded service tolerable; use stale cache and read replicas as fallbacks.',
+                        tools: [
+                            { name: 'Redis Sentinel', url: 'https://redis.io/docs/management/sentinel/', rationale: 'Automatic cache failover' },
+                            { name: 'PostgreSQL Replicas', url: 'https://www.postgresql.org/', rationale: 'Fallback to read-only mode' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional CDN distribution for static content; single-region database acceptable.',
+                        tools: [
+                            { name: 'Cloudflare CDN', url: 'https://www.cloudflare.com/', rationale: 'Global edge caching' },
+                            { name: 'Single-Region DB', url: 'https://www.postgresql.org/', rationale: 'Simplify consistency for voting' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Community-driven often requires lean infrastructure; optimize with aggressive caching.',
+                        tools: [
+                            { name: 'Cloudflare Free Tier', url: 'https://www.cloudflare.com/', rationale: 'Free CDN and DDoS protection' },
+                            { name: 'SQLite', url: 'https://www.sqlite.org/', rationale: 'Single-file database for small communities' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Moderate updates with ranking algorithm tuning and spam detection improvements.',
+                        tools: [
+                            { name: 'A/B Testing', url: 'https://en.wikipedia.org/wiki/A/B_testing', rationale: 'Test ranking algorithm changes' },
+                            { name: 'Docker', url: 'https://www.docker.com/', rationale: 'Consistent deployment environments' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'photo-sharing',
+                name: 'Photo Sharing',
+                icon: '📸',
+                color: '#f43f5e',
+                examples: 'Instagram, Pinterest',
+                scores: { scale: 5, readWrite: 4, consistency: 2, latency: 3, dataVolume: 5, failureTolerance: 3, geoDistribution: 5, costPressure: 4, changeVelocity: 4 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of image views require CDN optimization and efficient thumbnail generation.',
+                        tools: [
+                            { name: 'Imgix', url: 'https://imgix.com/', rationale: 'On-the-fly image optimization and resizing' },
+                            { name: 'CloudFront', url: 'https://aws.amazon.com/cloudfront/', rationale: 'Global CDN for image delivery' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Read-heavy with upload bursts; use async processing and CDN for reads.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Durable storage for uploaded images' },
+                            { name: 'Lambda', url: 'https://aws.amazon.com/lambda/', rationale: 'Async thumbnail generation on upload' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency acceptable - new uploads can appear with delay.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Eventually consistent object storage' },
+                            { name: 'DynamoDB', url: 'https://aws.amazon.com/dynamodb/', rationale: 'Eventually consistent metadata' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Fast image loads critical for engagement; use CDN, lazy loading, and WebP format.',
+                        tools: [
+                            { name: 'WebP', url: 'https://developers.google.com/speed/webp', rationale: 'Smaller file sizes = faster loads' },
+                            { name: 'Cloudflare', url: 'https://www.cloudflare.com/', rationale: 'Edge caching and image optimization' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Petabytes of images require object storage with lifecycle policies for old content.',
+                        tools: [
+                            { name: 'S3 Intelligent-Tiering', url: 'https://aws.amazon.com/s3/storage-classes/intelligent-tiering/', rationale: 'Automatic cost optimization' },
+                            { name: 'Glacier', url: 'https://aws.amazon.com/glacier/', rationale: 'Archive rarely-accessed photos' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Temporary image unavailability tolerable; use multi-region S3 and CDN fallbacks.',
+                        tools: [
+                            { name: 'S3 Cross-Region Replication', url: 'https://aws.amazon.com/s3/', rationale: 'Replicate images to multiple regions' },
+                            { name: 'CloudFront', url: 'https://aws.amazon.com/cloudfront/', rationale: 'Serve from edge cache during origin issues' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Global audience requires worldwide CDN with geo-aware image delivery.',
+                        tools: [
+                            { name: 'Cloudflare Images', url: 'https://www.cloudflare.com/products/cloudflare-images/', rationale: 'Global image delivery network' },
+                            { name: 'S3 Transfer Acceleration', url: 'https://aws.amazon.com/s3/transfer-acceleration/', rationale: 'Fast uploads from anywhere' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Storage and bandwidth costs dominate; use compression and tiered storage.',
+                        tools: [
+                            { name: 'WebP/AVIF', url: 'https://developers.google.com/speed/webp', rationale: 'Reduce storage and bandwidth costs' },
+                            { name: 'S3 Glacier', url: 'https://aws.amazon.com/glacier/', rationale: 'Cheap archive for old photos' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Rapid feature development with filters, editing tools, and algorithm updates.',
+                        tools: [
+                            { name: 'Feature Flags', url: 'https://launchdarkly.com/', rationale: 'Gradual rollout of new features' },
+                            { name: 'A/B Testing', url: 'https://www.optimizely.com/', rationale: 'Test engagement with new filters' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'job-queue',
+                name: 'Job Queue System',
+                icon: '⚙️',
+                color: '#6366f1',
+                examples: 'Celery, Sidekiq',
+                scores: { scale: 4, readWrite: 3, consistency: 4, latency: 2, dataVolume: 3, failureTolerance: 4, geoDistribution: 2, costPressure: 3, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Millions of jobs require horizontal worker scaling and efficient job distribution.',
+                        tools: [
+                            { name: 'RabbitMQ', url: 'https://www.rabbitmq.com/', rationale: 'Distributed message queue for job distribution' },
+                            { name: 'Kubernetes Jobs', url: 'https://kubernetes.io/', rationale: 'Scale workers based on queue depth' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Balanced with write-heavy bursts; use persistent queues and worker pools.',
+                        tools: [
+                            { name: 'Redis Lists', url: 'https://redis.io/', rationale: 'Fast job queue with persistence' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Durable queue for replay capability' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'At-least-once delivery with idempotent handlers; use acknowledgments and retries.',
+                        tools: [
+                            { name: 'SQS', url: 'https://aws.amazon.com/sqs/', rationale: 'At-least-once delivery guarantees' },
+                            { name: 'Idempotency Keys', url: 'https://stripe.com/docs/api/idempotent_requests', rationale: 'Safe job retries' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Async processing acceptable; prioritize throughput over low latency.',
+                        tools: [
+                            { name: 'Batch Processing', url: 'https://aws.amazon.com/batch/', rationale: 'Process jobs in efficient batches' },
+                            { name: 'Priority Queues', url: 'https://www.rabbitmq.com/', rationale: 'High-priority jobs processed first' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Moderate job payloads; use message references for large data instead of inline.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Store large job inputs separately' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Fast storage for job metadata' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Job loss unacceptable; use persistent queues, dead-letter queues, and retries.',
+                        tools: [
+                            { name: 'RabbitMQ Durable Queues', url: 'https://www.rabbitmq.com/', rationale: 'Persist jobs to disk' },
+                            { name: 'Dead Letter Queue', url: 'https://aws.amazon.com/sqs/', rationale: 'Capture failed jobs for manual retry' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional workers process local jobs; cross-region queues for global tasks.',
+                        tools: [
+                            { name: 'RabbitMQ Federation', url: 'https://www.rabbitmq.com/', rationale: 'Connect queues across regions' },
+                            { name: 'Regional Workers', url: 'https://kubernetes.io/', rationale: 'Process jobs close to data' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Background processing allows use of spot instances and off-peak scaling.',
+                        tools: [
+                            { name: 'Spot Instances', url: 'https://aws.amazon.com/ec2/spot/', rationale: 'Cheap compute for fault-tolerant jobs' },
+                            { name: 'Karpenter', url: 'https://karpenter.sh/', rationale: 'Efficient node provisioning' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Job handlers updated frequently; use versioned queues and backward compatibility.',
+                        tools: [
+                            { name: 'Queue Versioning', url: 'https://www.rabbitmq.com/', rationale: 'Deploy new workers without breaking old jobs' },
+                            { name: 'Protobuf', url: 'https://protobuf.dev/', rationale: 'Backward-compatible job schemas' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'analytics-platform',
+                name: 'Analytics Platform',
+                icon: '📊',
+                color: '#0ea5e9',
+                examples: 'Google Analytics, Mixpanel',
+                scores: { scale: 5, readWrite: 1, consistency: 2, latency: 2, dataVolume: 5, failureTolerance: 3, geoDistribution: 4, costPressure: 3, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of events daily require streaming ingestion and distributed processing.',
+                        tools: [
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'High-throughput event ingestion' },
+                            { name: 'Apache Flink', url: 'https://flink.apache.org/', rationale: 'Real-time stream processing' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Extreme write skew with batch reads; use columnar storage and write buffering.',
+                        tools: [
+                            { name: 'ClickHouse', url: 'https://clickhouse.com/', rationale: 'Columnar database optimized for analytics' },
+                            { name: 'Parquet', url: 'https://parquet.apache.org/', rationale: 'Efficient columnar storage format' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency fine - delayed metrics acceptable for analytical use case.',
+                        tools: [
+                            { name: 'Lambda Architecture', url: 'https://en.wikipedia.org/wiki/Lambda_architecture', rationale: 'Batch layer for accuracy, speed layer for freshness' },
+                            { name: 'Apache Druid', url: 'https://druid.apache.org/', rationale: 'Real-time and historical analytics' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Query speed less critical than ingestion throughput; use pre-aggregation and caching.',
+                        tools: [
+                            { name: 'Materialized Views', url: 'https://clickhouse.com/', rationale: 'Pre-compute common aggregations' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Cache dashboard queries' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Petabytes of event data require data retention policies and cold storage.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Store raw events cheaply' },
+                            { name: 'Data Lifecycle', url: 'https://clickhouse.com/', rationale: 'Drop old detailed data, keep aggregates' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Event loss acceptable in small amounts; use buffering and best-effort delivery.',
+                        tools: [
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Durable buffer for events' },
+                            { name: 'At-Least-Once', url: 'https://kafka.apache.org/', rationale: 'Acceptable duplicate events' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional ingestion endpoints with centralized data warehouse for global analysis.',
+                        tools: [
+                            { name: 'Regional Kafka', url: 'https://kafka.apache.org/', rationale: 'Ingest events close to users' },
+                            { name: 'Snowflake', url: 'https://www.snowflake.com/', rationale: 'Multi-region data warehouse' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'High data volume requires cost optimization with compression and sampling.',
+                        tools: [
+                            { name: 'Sampling', url: 'https://en.wikipedia.org/wiki/Sampling_(statistics)', rationale: 'Store 1% of detailed events, 100% aggregates' },
+                            { name: 'Zstandard', url: 'https://facebook.github.io/zstd/', rationale: 'Compress event data' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Schema evolution frequent; use flexible schemas and versioned events.',
+                        tools: [
+                            { name: 'Avro', url: 'https://avro.apache.org/', rationale: 'Schema evolution for event formats' },
+                            { name: 'Schema Registry', url: 'https://docs.confluent.io/platform/current/schema-registry/', rationale: 'Centralized schema management' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'booking-system',
+                name: 'Booking System',
+                icon: '📅',
+                color: '#84cc16',
+                examples: 'Airbnb, Booking.com',
+                scores: { scale: 4, readWrite: 3, consistency: 5, latency: 3, dataVolume: 3, failureTolerance: 5, geoDistribution: 4, costPressure: 2, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'High booking volume requires distributed locking and optimistic concurrency control.',
+                        tools: [
+                            { name: 'Redis Redlock', url: 'https://redis.io/docs/manual/patterns/distributed-locks/', rationale: 'Distributed locks for inventory' },
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'Optimistic locking with version numbers' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Read-heavy browsing with critical write path for bookings; use read replicas.',
+                        tools: [
+                            { name: 'Aurora Read Replicas', url: 'https://aws.amazon.com/rds/aurora/', rationale: 'Scale listing searches' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Cache search results and availability' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong consistency mandatory - no double bookings allowed. Use pessimistic locking.',
+                        tools: [
+                            { name: 'PostgreSQL SERIALIZABLE', url: 'https://www.postgresql.org/', rationale: 'Strongest isolation level' },
+                            { name: 'SELECT FOR UPDATE', url: 'https://www.postgresql.org/', rationale: 'Lock rows during booking transaction' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Fast search important but booking can take seconds; use async confirmation.',
+                        tools: [
+                            { name: 'Elasticsearch', url: 'https://www.elastic.co/', rationale: 'Fast listing search' },
+                            { name: 'WebSockets', url: 'https://developer.mozilla.org/en-US/docs/Web/API/WebSocket', rationale: 'Push booking confirmation to user' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Moderate listing and booking data with images; use CDN for media and DB for transactions.',
+                        tools: [
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Store listing photos' },
+                            { name: 'CloudFront', url: 'https://aws.amazon.com/cloudfront/', rationale: 'CDN for image delivery' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Mission-critical: multi-AZ database with automated backups and point-in-time recovery.',
+                        tools: [
+                            { name: 'RDS Multi-AZ', url: 'https://aws.amazon.com/rds/', rationale: 'Automatic failover' },
+                            { name: 'PITR', url: 'https://aws.amazon.com/rds/', rationale: 'Recover from data corruption' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Multi-region for global travelers with regional inventory management.',
+                        tools: [
+                            { name: 'Route 53 Latency Routing', url: 'https://aws.amazon.com/route53/', rationale: 'Route to nearest region' },
+                            { name: 'Aurora Global Database', url: 'https://aws.amazon.com/rds/aurora/global-database/', rationale: 'Cross-region replication' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'High transaction value justifies premium infrastructure for reliability.',
+                        tools: [
+                            { name: 'Reserved Instances', url: 'https://aws.amazon.com/ec2/pricing/reserved-instances/', rationale: 'Predictable baseline capacity' },
+                            { name: 'Premium Support', url: 'https://aws.amazon.com/premiumsupport/', rationale: 'Fast incident response' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Moderate pace with seasonal features; use feature flags and staged rollouts.',
+                        tools: [
+                            { name: 'LaunchDarkly', url: 'https://launchdarkly.com/', rationale: 'Gradual feature rollouts' },
+                            { name: 'Blue-Green Deployment', url: 'https://martinfowler.com/bliki/BlueGreenDeployment.html', rationale: 'Zero-downtime releases' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'notification-service',
+                name: 'Notification Service',
+                icon: '🔔',
+                color: '#eab308',
+                examples: 'Twilio, Firebase Cloud Messaging',
+                scores: { scale: 5, readWrite: 2, consistency: 3, latency: 4, dataVolume: 4, failureTolerance: 4, geoDistribution: 4, costPressure: 3, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of push notifications require rate limiting and batch delivery.',
+                        tools: [
+                            { name: 'FCM', url: 'https://firebase.google.com/docs/cloud-messaging', rationale: 'Scalable push notification infrastructure' },
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Rate limiting per user/app' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Write-heavy with occasional preference reads; use queues and async delivery.',
+                        tools: [
+                            { name: 'SQS', url: 'https://aws.amazon.com/sqs/', rationale: 'Queue notifications for delivery' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'High-throughput event stream' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'At-least-once delivery acceptable; deduplication on client side.',
+                        tools: [
+                            { name: 'Idempotency Keys', url: 'https://stripe.com/docs/api/idempotent_requests', rationale: 'Client-side deduplication' },
+                            { name: 'SQS', url: 'https://aws.amazon.com/sqs/', rationale: 'At-least-once delivery guarantees' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-second delivery for critical alerts; batch and delay for less important notifications.',
+                        tools: [
+                            { name: 'WebSockets', url: 'https://developer.mozilla.org/en-US/docs/Web/API/WebSocket', rationale: 'Instant delivery to connected clients' },
+                            { name: 'Priority Queues', url: 'https://www.rabbitmq.com/', rationale: 'Urgent notifications sent first' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Large notification history with delivery receipts; use retention policies.',
+                        tools: [
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'Time-series storage for notification logs' },
+                            { name: 'TTL Policies', url: 'https://cassandra.apache.org/', rationale: 'Auto-delete old notifications' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Critical notifications must be delivered; use retries and multiple delivery channels.',
+                        tools: [
+                            { name: 'Exponential Backoff', url: 'https://en.wikipedia.org/wiki/Exponential_backoff', rationale: 'Retry failed deliveries' },
+                            { name: 'Multi-Channel', url: 'https://www.twilio.com/', rationale: 'Fallback to SMS if push fails' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional queues for low-latency delivery with global state tracking.',
+                        tools: [
+                            { name: 'Regional SQS', url: 'https://aws.amazon.com/sqs/', rationale: 'Process notifications close to users' },
+                            { name: 'DynamoDB Global Tables', url: 'https://aws.amazon.com/dynamodb/global-tables/', rationale: 'Track delivery state globally' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'High volume but low per-notification value; optimize with batching and efficient protocols.',
+                        tools: [
+                            { name: 'Batch API', url: 'https://firebase.google.com/docs/cloud-messaging', rationale: 'Send multiple notifications in one request' },
+                            { name: 'HTTP/2', url: 'https://http2.github.io/', rationale: 'Multiplexed connections reduce overhead' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Frequent template updates and A/B tests on notification content.',
+                        tools: [
+                            { name: 'Template Engine', url: 'https://handlebarsjs.com/', rationale: 'Separate content from delivery logic' },
+                            { name: 'A/B Testing', url: 'https://www.optimizely.com/', rationale: 'Test notification copy and timing' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'live-sports',
+                name: 'Live Sports Scores',
+                icon: '⚽',
+                color: '#22c55e',
+                examples: 'ESPN, TheScore',
+                scores: { scale: 4, readWrite: 5, consistency: 3, latency: 5, dataVolume: 3, failureTolerance: 3, geoDistribution: 4, costPressure: 3, changeVelocity: 2 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Traffic spikes during major events require auto-scaling and CDN caching.',
+                        tools: [
+                            { name: 'CloudFront', url: 'https://aws.amazon.com/cloudfront/', rationale: 'Edge caching for score updates' },
+                            { name: 'Kubernetes HPA', url: 'https://kubernetes.io/', rationale: 'Scale API servers during games' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Extreme read skew with infrequent score updates; use pub/sub and aggressive caching.',
+                        tools: [
+                            { name: 'Redis Pub/Sub', url: 'https://redis.io/docs/manual/pubsub/', rationale: 'Broadcast score updates to subscribers' },
+                            { name: 'Server-Sent Events', url: 'https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events', rationale: 'Push updates to clients' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency fine - scores can lag by seconds without UX impact.',
+                        tools: [
+                            { name: 'Redis', url: 'https://redis.io/', rationale: 'Eventually consistent score cache' },
+                            { name: 'DynamoDB', url: 'https://aws.amazon.com/dynamodb/', rationale: 'Fast eventually consistent reads' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Real-time updates critical during live games; use WebSockets and edge servers.',
+                        tools: [
+                            { name: 'WebSockets', url: 'https://developer.mozilla.org/en-US/docs/Web/API/WebSocket', rationale: 'Bidirectional real-time updates' },
+                            { name: 'Pusher', url: 'https://pusher.com/', rationale: 'Managed WebSocket infrastructure' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Moderate historical data with time-series game events and statistics.',
+                        tools: [
+                            { name: 'TimescaleDB', url: 'https://www.timescale.com/', rationale: 'Store game events and stats' },
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'Relational data for teams and players' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Brief outages tolerable; use stale cache and graceful degradation.',
+                        tools: [
+                            { name: 'Stale Cache', url: 'https://varnish-cache.org/', rationale: 'Serve old scores during outage' },
+                            { name: 'Circuit Breaker', url: 'https://martinfowler.com/bliki/CircuitBreaker.html', rationale: 'Fallback to cached data' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Global fanbase requires multi-region deployment with geo-routing.',
+                        tools: [
+                            { name: 'Route 53', url: 'https://aws.amazon.com/route53/', rationale: 'Geo-aware DNS routing' },
+                            { name: 'Regional WebSockets', url: 'https://pusher.com/', rationale: 'Low-latency updates per region' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Ad-supported model allows moderate infrastructure; optimize with caching.',
+                        tools: [
+                            { name: 'Varnish', url: 'https://varnish-cache.org/', rationale: 'Reduce API load with aggressive caching' },
+                            { name: 'CloudFront', url: 'https://aws.amazon.com/cloudfront/', rationale: 'Free tier for static assets' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Stable core with infrequent updates; focus on reliability during games.',
+                        tools: [
+                            { name: 'Blue-Green Deployment', url: 'https://martinfowler.com/bliki/BlueGreenDeployment.html', rationale: 'Deploy updates between games' },
+                            { name: 'Feature Flags', url: 'https://launchdarkly.com/', rationale: 'Toggle features without deployment' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'document-collab',
+                name: 'Document Collaboration',
+                icon: '📝',
+                color: '#4f46e5',
+                examples: 'Google Docs, Notion',
+                scores: { scale: 4, readWrite: 3, consistency: 5, latency: 5, dataVolume: 4, failureTolerance: 4, geoDistribution: 4, costPressure: 2, changeVelocity: 4 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Millions of concurrent editors require efficient operational transform and conflict resolution.',
+                        tools: [
+                            { name: 'Yjs', url: 'https://yjs.dev/', rationale: 'CRDT library for conflict-free collaboration' },
+                            { name: 'WebSocket Server', url: 'https://socket.io/', rationale: 'Real-time sync between editors' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Balanced with real-time sync; use operational transforms and optimistic updates.',
+                        tools: [
+                            { name: 'Operational Transform', url: 'https://en.wikipedia.org/wiki/Operational_transformation', rationale: 'Merge concurrent edits' },
+                            { name: 'CRDT', url: 'https://crdt.tech/', rationale: 'Conflict-free replicated data types' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Strong eventual consistency critical - all users must see same final state.',
+                        tools: [
+                            { name: 'Automerge', url: 'https://automerge.org/', rationale: 'Automatic conflict resolution' },
+                            { name: 'Causality Tracking', url: 'https://en.wikipedia.org/wiki/Lamport_timestamp', rationale: 'Order concurrent operations' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Sub-100ms keystroke sync critical for collaboration UX; use WebSockets and edge servers.',
+                        tools: [
+                            { name: 'WebSockets', url: 'https://developer.mozilla.org/en-US/docs/Web/API/WebSocket', rationale: 'Low-latency bidirectional sync' },
+                            { name: 'Cloudflare Durable Objects', url: 'https://developers.cloudflare.com/durable-objects/', rationale: 'Edge-based collaborative state' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Large documents with version history; use efficient diff storage and compression.',
+                        tools: [
+                            { name: 'Delta Encoding', url: 'https://en.wikipedia.org/wiki/Delta_encoding', rationale: 'Store diffs instead of full versions' },
+                            { name: 'S3', url: 'https://aws.amazon.com/s3/', rationale: 'Archive old versions' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Data loss unacceptable; use auto-save, version history, and offline mode.',
+                        tools: [
+                            { name: 'IndexedDB', url: 'https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API', rationale: 'Local persistence for offline editing' },
+                            { name: 'Conflict Resolution', url: 'https://yjs.dev/', rationale: 'Merge offline changes on reconnect' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Global teams require regional servers with cross-region sync.',
+                        tools: [
+                            { name: 'Regional WebSockets', url: 'https://pusher.com/', rationale: 'Low-latency sync per region' },
+                            { name: 'CRDTs', url: 'https://crdt.tech/', rationale: 'Merge across regions without coordination' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Premium product justifies investment in real-time infrastructure.',
+                        tools: [
+                            { name: 'Dedicated WebSocket Servers', url: 'https://socket.io/', rationale: 'Maintain persistent connections' },
+                            { name: 'Premium Database', url: 'https://www.cockroachlabs.com/', rationale: 'High availability for documents' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Frequent feature updates with backward-compatible document format.',
+                        tools: [
+                            { name: 'Schema Versioning', url: 'https://protobuf.dev/', rationale: 'Evolve document format safely' },
+                            { name: 'Feature Flags', url: 'https://launchdarkly.com/', rationale: 'Gradual rollout of editor features' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'stock-trading',
+                name: 'Stock Trading Platform',
+                icon: '📈',
+                color: '#dc2626',
+                examples: 'Robinhood, E*TRADE',
+                scores: { scale: 4, readWrite: 3, consistency: 5, latency: 5, dataVolume: 4, failureTolerance: 5, geoDistribution: 2, costPressure: 2, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Market open spikes require elastic scaling and efficient order matching.',
+                        tools: [
+                            { name: 'Matching Engine', url: 'https://en.wikipedia.org/wiki/Order_matching_system', rationale: 'Low-latency order book' },
+                            { name: 'Kubernetes', url: 'https://kubernetes.io/', rationale: 'Scale order processing services' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Balanced with bursts during market events; use message queues and ACID transactions.',
+                        tools: [
+                            { name: 'PostgreSQL', url: 'https://www.postgresql.org/', rationale: 'ACID guarantees for trades' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Durable audit log of all orders' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Linearizable consistency mandatory - no phantom orders or incorrect balances.',
+                        tools: [
+                            { name: 'Spanner', url: 'https://cloud.google.com/spanner', rationale: 'External consistency for global trades' },
+                            { name: 'PostgreSQL SERIALIZABLE', url: 'https://www.postgresql.org/', rationale: 'Strongest isolation level' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Microsecond order execution critical; use in-memory matching and co-location.',
+                        tools: [
+                            { name: 'LMAX Disruptor', url: 'https://lmax-exchange.github.io/disruptor/', rationale: 'High-performance event processing' },
+                            { name: 'FPGA', url: 'https://en.wikipedia.org/wiki/Field-programmable_gate_array', rationale: 'Hardware-accelerated matching' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Large trade history and market data; use time-series database and archival.',
+                        tools: [
+                            { name: 'TimescaleDB', url: 'https://www.timescale.com/', rationale: 'Time-series for price and trade data' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Durable immutable trade log' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Mission-critical: multi-AZ with instant failover and comprehensive monitoring.',
+                        tools: [
+                            { name: 'Active-Active', url: 'https://www.cockroachlabs.com/', rationale: 'Zero RPO/RTO failover' },
+                            { name: 'Circuit Breakers', url: 'https://resilience4j.readme.io/', rationale: 'Prevent cascading failures' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Exchange co-location critical; regional deployments less important.',
+                        tools: [
+                            { name: 'Co-Location', url: 'https://en.wikipedia.org/wiki/Colocation_centre', rationale: 'Deploy next to stock exchange' },
+                            { name: 'Low-Latency Network', url: 'https://www.exegy.com/', rationale: 'Direct market data feeds' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'Premium service justifies investment in low-latency infrastructure.',
+                        tools: [
+                            { name: 'Bare Metal', url: 'https://www.equinix.com/', rationale: 'Eliminate virtualization overhead' },
+                            { name: 'Dedicated Fiber', url: 'https://en.wikipedia.org/wiki/Dark_fibre', rationale: 'Lowest possible network latency' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Stable core trading engine with moderate UI and feature updates.',
+                        tools: [
+                            { name: 'Immutable Infrastructure', url: 'https://www.hashicorp.com/resources/what-is-mutable-vs-immutable-infrastructure', rationale: 'Minimize production changes' },
+                            { name: 'Canary Deployments', url: 'https://martinfowler.com/bliki/CanaryRelease.html', rationale: 'Gradual rollout to detect issues' }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'iot-platform',
+                name: 'IoT Platform',
+                icon: '📡',
+                color: '#059669',
+                examples: 'AWS IoT, Azure IoT',
+                scores: { scale: 5, readWrite: 2, consistency: 2, latency: 3, dataVolume: 5, failureTolerance: 4, geoDistribution: 4, costPressure: 3, changeVelocity: 3 },
+                patterns: [
+                    {
+                        dimension: 'scale',
+                        text: 'Billions of devices sending telemetry require scalable ingestion and time-series storage.',
+                        tools: [
+                            { name: 'MQTT Broker', url: 'https://mosquitto.org/', rationale: 'Lightweight protocol for IoT devices' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Buffer high-throughput sensor data' }
+                        ]
+                    },
+                    {
+                        dimension: 'readWrite',
+                        text: 'Extreme write dominance from constant telemetry; batch reads for analytics.',
+                        tools: [
+                            { name: 'InfluxDB', url: 'https://www.influxdata.com/', rationale: 'Write-optimized time-series database' },
+                            { name: 'TimescaleDB', url: 'https://www.timescale.com/', rationale: 'Time-series with SQL analytics' }
+                        ]
+                    },
+                    {
+                        dimension: 'consistency',
+                        text: 'Eventual consistency acceptable - sensor readings can be out of order.',
+                        tools: [
+                            { name: 'Cassandra', url: 'https://cassandra.apache.org/', rationale: 'AP database for sensor data' },
+                            { name: 'Out-of-Order Ingestion', url: 'https://www.influxdata.com/', rationale: 'Handle delayed telemetry' }
+                        ]
+                    },
+                    {
+                        dimension: 'latency',
+                        text: 'Variable latency acceptable for telemetry; real-time for critical alerts.',
+                        tools: [
+                            { name: 'Stream Processing', url: 'https://flink.apache.org/', rationale: 'Real-time alerting on sensor data' },
+                            { name: 'Edge Computing', url: 'https://aws.amazon.com/greengrass/', rationale: 'Process data locally for low latency' }
+                        ]
+                    },
+                    {
+                        dimension: 'dataVolume',
+                        text: 'Petabytes of sensor data require retention policies and cold storage.',
+                        tools: [
+                            { name: 'Data Retention', url: 'https://www.influxdata.com/', rationale: 'Auto-delete old raw data, keep aggregates' },
+                            { name: 'S3 Glacier', url: 'https://aws.amazon.com/glacier/', rationale: 'Archive historical sensor data' }
+                        ]
+                    },
+                    {
+                        dimension: 'failureTolerance',
+                        text: 'Device buffering and retry logic; platform HA with message queue durability.',
+                        tools: [
+                            { name: 'Device Shadow', url: 'https://aws.amazon.com/iot-core/', rationale: 'Cache last known state during outages' },
+                            { name: 'Kafka', url: 'https://kafka.apache.org/', rationale: 'Durable message queue for telemetry' }
+                        ]
+                    },
+                    {
+                        dimension: 'geoDistribution',
+                        text: 'Regional hubs for device connectivity with centralized data warehouse.',
+                        tools: [
+                            { name: 'Regional MQTT Brokers', url: 'https://mosquitto.org/', rationale: 'Low-latency device connections' },
+                            { name: 'Data Pipeline', url: 'https://aws.amazon.com/data-pipeline/', rationale: 'Aggregate regional data centrally' }
+                        ]
+                    },
+                    {
+                        dimension: 'costPressure',
+                        text: 'High data volume requires cost optimization with sampling and compression.',
+                        tools: [
+                            { name: 'Downsampling', url: 'https://www.influxdata.com/', rationale: 'Store 1-second data for 1 week, 1-hour for years' },
+                            { name: 'Compression', url: 'https://www.timescale.com/', rationale: 'Reduce storage costs for time-series' }
+                        ]
+                    },
+                    {
+                        dimension: 'changeVelocity',
+                        text: 'Frequent firmware and platform updates; use versioned protocols and shadow state.',
+                        tools: [
+                            { name: 'OTA Updates', url: 'https://aws.amazon.com/iot-device-management/', rationale: 'Deploy firmware remotely' },
+                            { name: 'Protocol Versioning', url: 'https://mqtt.org/', rationale: 'Backward-compatible MQTT versions' }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        // ========== HOOKS ==========
+
+        const useWindowSize = () => {
+            const [size, setSize] = useState({ width: typeof window !== 'undefined' ? window.innerWidth : 1024 });
+
+            useEffect(() => {
+                const handleResize = () => setSize({ width: window.innerWidth });
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, []);
+
+            return size;
+        };
+
+        // ========== RADAR CHART COMPONENT ==========
+
+        const RadarChart = ({ selectedSystems, theme, width }) => {
+            const isMobile = width < BREAKPOINTS.sm;
+            const size = isMobile ? 380 : Math.min(700, width * 0.9);
+            const padding = isMobile ? 60 : 100;
+            const radius = (size - padding * 2) / 2;
+            const center = size / 2;
+
+            // Calculate points for radar chart
+            const angleStep = (Math.PI * 2) / DIMENSIONS.length;
+            const scale = d3.scaleLinear().domain([0, 5]).range([0, radius]);
+
+            const getPoint = (dimensionIndex, value) => {
+                const angle = angleStep * dimensionIndex - Math.PI / 2;
+                const r = scale(value);
+                return {
+                    x: center + r * Math.cos(angle),
+                    y: center + r * Math.sin(angle)
+                };
+            };
+
+            // Grid levels
+            const gridLevels = [1, 2, 3, 4, 5];
+
+            const getPolygonPoints = (level) => {
+                return DIMENSIONS.map((_, i) => {
+                    const point = getPoint(i, level);
+                    return `${point.x},${point.y}`;
+                }).join(' ');
+            };
+
+            const getSystemPolygonPoints = (system) => {
+                return DIMENSIONS.map((dim, i) => {
+                    const point = getPoint(i, system.scores[dim.key]);
+                    return `${point.x},${point.y}`;
+                }).join(' ');
+            };
+
+            if (selectedSystems.length === 0) {
+                return (
+                    <div style={{
+                        width: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        padding: '40px 20px'
+                    }}>
+                        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
+                            {/* Grid */}
+                            {gridLevels.map(level => (
+                                <polygon
+                                    key={level}
+                                    points={getPolygonPoints(level)}
+                                    fill="none"
+                                    stroke={theme.gridLine}
+                                    strokeWidth="1"
+                                    opacity={0.3}
+                                />
+                            ))}
+
+                            {/* Axes */}
+                            {DIMENSIONS.map((dim, i) => {
+                                const end = getPoint(i, 5);
+                                return (
+                                    <line
+                                        key={dim.key}
+                                        x1={center}
+                                        y1={center}
+                                        x2={end.x}
+                                        y2={end.y}
+                                        stroke={theme.gridLine}
+                                        strokeWidth="1"
+                                        opacity={0.3}
+                                    />
+                                );
+                            })}
+
+                            {/* Labels */}
+                            {DIMENSIONS.map((dim, i) => {
+                                const labelPoint = getPoint(i, 5.5);
+                                const angle = angleStep * i - Math.PI / 2;
+                                let textAnchor = 'middle';
+                                if (Math.cos(angle) > 0.1) textAnchor = 'start';
+                                if (Math.cos(angle) < -0.1) textAnchor = 'end';
+
+                                return (
+                                    <text
+                                        key={dim.key}
+                                        x={labelPoint.x}
+                                        y={labelPoint.y}
+                                        textAnchor={textAnchor}
+                                        fontSize={isMobile ? 11 : 13}
+                                        fill={theme.text}
+                                        dominantBaseline="middle"
+                                    >
+                                        {dim.icon} {dim.label}
+                                    </text>
+                                );
+                            })}
+                        </svg>
+                    </div>
+                );
+            }
+
+            return (
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '20px 0' }}>
+                    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible' }}>
+                        {/* Grid */}
+                        {gridLevels.map(level => (
+                            <polygon
+                                key={level}
+                                points={getPolygonPoints(level)}
+                                fill="none"
+                                stroke={theme.gridLine}
+                                strokeWidth="1"
+                                opacity={0.3}
+                            />
+                        ))}
+
+                        {/* Axes */}
+                        {DIMENSIONS.map((dim, i) => {
+                            const end = getPoint(i, 5);
+                            return (
+                                <line
+                                    key={dim.key}
+                                    x1={center}
+                                    y1={center}
+                                    x2={end.x}
+                                    y2={end.y}
+                                    stroke={theme.gridLine}
+                                    strokeWidth="1"
+                                    opacity={0.3}
+                                />
+                            );
+                        })}
+
+                        {/* System polygons */}
+                        {selectedSystems.map(system => (
+                            <polygon
+                                key={system.id}
+                                points={getSystemPolygonPoints(system)}
+                                fill={system.color}
+                                fillOpacity={theme === THEMES.dark ? 0.2 : 0.15}
+                                stroke={system.color}
+                                strokeWidth={theme === THEMES.dark ? 2.5 : 2}
+                                strokeOpacity={0.8}
+                            />
+                        ))}
+
+                        {/* Labels */}
+                        {DIMENSIONS.map((dim, i) => {
+                            const labelPoint = getPoint(i, 5.8);
+                            const angle = angleStep * i - Math.PI / 2;
+                            let textAnchor = 'middle';
+                            if (Math.cos(angle) > 0.1) textAnchor = 'start';
+                            if (Math.cos(angle) < -0.1) textAnchor = 'end';
+
+                            return (
+                                <text
+                                    key={dim.key}
+                                    x={labelPoint.x}
+                                    y={labelPoint.y}
+                                    textAnchor={textAnchor}
+                                    fontSize={isMobile ? 11 : 13}
+                                    fill={theme.text}
+                                    dominantBaseline="middle"
+                                    fontWeight="500"
+                                >
+                                    {dim.icon} {dim.label}
+                                </text>
+                            );
+                        })}
+                    </svg>
+                </div>
+            );
+        };
+
+        // ========== SYSTEM SELECTOR COMPONENT ==========
+
+        const SystemSelector = ({ selectedIds, onToggle, onClearAll, theme, isMobile }) => {
+            return (
+                <div style={{ marginBottom: 30 }}>
+                    <div style={{
+                        display: 'flex',
+                        flexWrap: isMobile ? 'nowrap' : 'wrap',
+                        gap: 8,
+                        overflowX: isMobile ? 'auto' : 'visible',
+                        WebkitOverflowScrolling: 'touch',
+                        paddingBottom: isMobile ? 8 : 0
+                    }}>
+                        {SYSTEMS.map(system => {
+                            const isSelected = selectedIds.includes(system.id);
+                            return (
+                                <button
+                                    key={system.id}
+                                    onClick={() => onToggle(system.id)}
+                                    style={{
+                                        padding: isMobile ? '8px 14px' : '10px 18px',
+                                        borderRadius: 16,
+                                        border: 'none',
+                                        backgroundColor: isSelected ? system.color : theme.bgSecondary,
+                                        color: isSelected ? '#ffffff' : theme.text,
+                                        fontSize: isMobile ? 13 : 14,
+                                        fontWeight: isSelected ? '600' : '500',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s ease',
+                                        whiteSpace: 'nowrap',
+                                        flexShrink: 0,
+                                        opacity: 1,
+                                        boxShadow: isSelected ? `0 2px 8px ${system.color}40` : 'none'
+                                    }}
+                                    onMouseEnter={e => !isMobile && (e.target.style.transform = 'translateY(-2px)')}
+                                    onMouseLeave={e => !isMobile && (e.target.style.transform = 'translateY(0)')}
+                                >
+                                    {system.icon} {system.name}
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={onClearAll}
+                            disabled={selectedIds.length === 0}
+                            style={{
+                                padding: isMobile ? '8px 14px' : '10px 18px',
+                                borderRadius: 16,
+                                border: `1px solid ${theme.border}`,
+                                backgroundColor: theme.bg,
+                                color: theme.textSecondary,
+                                fontSize: isMobile ? 13 : 14,
+                                fontWeight: '500',
+                                cursor: selectedIds.length > 0 ? 'pointer' : 'not-allowed',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                opacity: selectedIds.length > 0 ? 1 : 0.3,
+                                transition: 'opacity 0.3s ease'
+                            }}
+                        >
+                            Clear All {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // ========== PATTERNS PANEL COMPONENT ==========
+
+        const PatternsPanel = ({ selectedSystems, theme, isMobile }) => {
+            const [expandedCards, setExpandedCards] = useState(isMobile ? [] : selectedSystems.length > 0 ? [selectedSystems[0].id] : []);
+
+            useEffect(() => {
+                if (!isMobile && selectedSystems.length > 0 && expandedCards.length === 0) {
+                    setExpandedCards([selectedSystems[0].id]);
+                }
+            }, [selectedSystems, isMobile]);
+
+            if (selectedSystems.length === 0) {
+                return null;
+            }
+
+            const toggleCard = (systemId) => {
+                setExpandedCards(prev =>
+                    prev.includes(systemId)
+                        ? prev.filter(id => id !== systemId)
+                        : [...prev, systemId]
+                );
+            };
+
+            const getBadgeColor = (score) => {
+                if (score >= 4) return { bg: theme.badgeGreenBg, text: theme.badgeGreen };
+                if (score >= 3) return { bg: theme.badgeYellowBg, text: theme.badgeYellow };
+                return { bg: theme.badgeBlueBg, text: theme.badgeBlue };
+            };
+
+            return (
+                <div style={{
+                    marginTop: 40,
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : selectedSystems.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))',
+                    gap: 20
+                }}>
+                    {selectedSystems.map(system => {
+                        const isExpanded = expandedCards.includes(system.id);
+
+                        return (
+                            <div
+                                key={system.id}
+                                style={{
+                                    backgroundColor: theme.bgCard,
+                                    borderRadius: 12,
+                                    borderLeft: `4px solid ${system.color}`,
+                                    boxShadow: `0 2px 8px ${theme.shadow}`,
+                                    overflow: 'hidden'
+                                }}
+                            >
+                                {/* Header */}
+                                <div
+                                    onClick={() => toggleCard(system.id)}
+                                    style={{
+                                        padding: isMobile ? 16 : 20,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        borderBottom: isExpanded ? `1px solid ${theme.border}` : 'none'
+                                    }}
+                                >
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: isMobile ? 18 : 20, color: theme.text }}>
+                                            {system.icon} {system.name}
+                                        </h3>
+                                        <p style={{ margin: '4px 0 0 0', fontSize: isMobile ? 12 : 14, color: theme.textSecondary }}>
+                                            {system.examples}
+                                        </p>
+                                    </div>
+                                    <span style={{ fontSize: 20, color: theme.textSecondary }}>
+                                        {isExpanded ? '−' : '+'}
+                                    </span>
+                                </div>
+
+                                {/* Body */}
+                                {isExpanded && (
+                                    <div style={{ padding: isMobile ? 16 : 20 }}>
+                                        {system.patterns.map(pattern => {
+                                            const dimension = DIMENSIONS.find(d => d.key === pattern.dimension);
+                                            const score = system.scores[pattern.dimension];
+                                            const badge = getBadgeColor(score);
+
+                                            return (
+                                                <div key={pattern.dimension} style={{ marginBottom: 20 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                                        <span style={{ fontSize: 16 }}>{dimension.icon}</span>
+                                                        <h4 style={{ margin: 0, fontSize: isMobile ? 14 : 15, color: theme.text }}>
+                                                            {dimension.label}
+                                                        </h4>
+                                                        <span style={{
+                                                            padding: '2px 8px',
+                                                            borderRadius: 12,
+                                                            fontSize: 12,
+                                                            fontWeight: '600',
+                                                            backgroundColor: badge.bg,
+                                                            color: badge.text
+                                                        }}>
+                                                            {score}
+                                                        </span>
+                                                    </div>
+                                                    <p style={{ margin: '0 0 8px 0', fontSize: isMobile ? 13 : 14, color: theme.textSecondary, lineHeight: 1.5 }}>
+                                                        {pattern.text}
+                                                    </p>
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                                        {pattern.tools.map((tool, idx) => (
+                                                            <a
+                                                                key={idx}
+                                                                href={tool.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                title={tool.rationale}
+                                                                style={{
+                                                                    padding: '4px 10px',
+                                                                    borderRadius: 6,
+                                                                    fontSize: isMobile ? 12 : 13,
+                                                                    backgroundColor: theme.bgSecondary,
+                                                                    color: theme.text,
+                                                                    textDecoration: 'none',
+                                                                    border: `1px solid ${theme.border}`,
+                                                                    transition: 'all 0.2s ease'
+                                                                }}
+                                                                onMouseEnter={e => {
+                                                                    e.target.style.backgroundColor = system.color;
+                                                                    e.target.style.color = '#ffffff';
+                                                                    e.target.style.borderColor = system.color;
+                                                                }}
+                                                                onMouseLeave={e => {
+                                                                    e.target.style.backgroundColor = theme.bgSecondary;
+                                                                    e.target.style.color = theme.text;
+                                                                    e.target.style.borderColor = theme.border;
+                                                                }}
+                                                            >
+                                                                {tool.name} ↗
+                                                            </a>
+                                                        ))}
+                                                    </div>
+                                                    {isMobile && (
+                                                        <p style={{ margin: '6px 0 0 0', fontSize: 11, color: theme.textSecondary, fontStyle: 'italic' }}>
+                                                            {pattern.tools[0]?.rationale}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        };
+
+        // ========== APP COMPONENT ==========
+
+        const App = () => {
+            const [theme, setTheme] = useState(() => {
+                if (typeof window !== 'undefined' && window.matchMedia) {
+                    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                }
+                return 'light';
+            });
+            const [selectedSystemIds, setSelectedSystemIds] = useState(['url-shortener']);
+            const windowSize = useWindowSize();
+
+            // Listen for system theme changes
+            useEffect(() => {
+                if (typeof window !== 'undefined' && window.matchMedia) {
+                    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                    const handleChange = (e) => {
+                        setTheme(e.matches ? 'dark' : 'light');
+                    };
+
+                    // Modern browsers
+                    if (mediaQuery.addEventListener) {
+                        mediaQuery.addEventListener('change', handleChange);
+                        return () => mediaQuery.removeEventListener('change', handleChange);
+                    }
+                    // Fallback for older browsers
+                    else if (mediaQuery.addListener) {
+                        mediaQuery.addListener(handleChange);
+                        return () => mediaQuery.removeListener(handleChange);
+                    }
+                }
+            }, []);
+
+            const currentTheme = THEMES[theme];
+            const isMobile = windowSize.width < BREAKPOINTS.sm;
+
+            const toggleTheme = () => {
+                setTheme(prev => prev === 'light' ? 'dark' : 'light');
+            };
+
+            const toggleSystem = (systemId) => {
+                setSelectedSystemIds(prev =>
+                    prev.includes(systemId)
+                        ? prev.filter(id => id !== systemId)
+                        : [...prev, systemId]
+                );
+            };
+
+            const clearAll = () => {
+                setSelectedSystemIds([]);
+            };
+
+            const selectedSystems = SYSTEMS.filter(s => selectedSystemIds.includes(s.id));
+
+            return (
+                <div style={{
+                    minHeight: '100vh',
+                    backgroundColor: currentTheme.bg,
+                    color: currentTheme.text
+                }}>
+                    <div className="container">
+                        {/* Header */}
+                        <div style={{ textAlign: 'center', marginBottom: 40, position: 'relative' }}>
+                            <button
+                                onClick={toggleTheme}
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    right: 0,
+                                    padding: 12,
+                                    borderRadius: 8,
+                                    border: 'none',
+                                    backgroundColor: currentTheme.bgSecondary,
+                                    fontSize: 20,
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.2s ease'
+                                }}
+                                onMouseEnter={e => e.target.style.transform = 'scale(1.1)'}
+                                onMouseLeave={e => e.target.style.transform = 'scale(1)'}
+                            >
+                                {theme === 'light' ? '🌙' : '☀️'}
+                            </button>
+
+                            <h1 style={{ fontSize: isMobile ? 28 : 42, margin: '0 0 12px 0', fontWeight: '700' }}>
+                                System Design Shapes
+                            </h1>
+                            <p style={{ fontSize: isMobile ? 14 : 18, color: currentTheme.textSecondary, margin: 0, maxWidth: 700, marginLeft: 'auto', marginRight: 'auto' }}>
+                                Compare architecture profiles of 20 common system design interview systems
+                            </p>
+                        </div>
+
+                        {/* System Selector */}
+                        <SystemSelector
+                            selectedIds={selectedSystemIds}
+                            onToggle={toggleSystem}
+                            onClearAll={clearAll}
+                            theme={currentTheme}
+                            isMobile={isMobile}
+                        />
+
+                        {/* Subtitle */}
+                        <p style={{
+                            marginBottom: 30,
+                            color: currentTheme.textSecondary,
+                            textAlign: 'center',
+                            fontSize: isMobile ? 14 : 16,
+                            fontStyle: 'italic'
+                        }}>
+                            Select systems above to compare their architecture profiles
+                        </p>
+
+                        {/* Radar Chart */}
+                        <RadarChart
+                            selectedSystems={selectedSystems}
+                            theme={currentTheme}
+                            width={windowSize.width}
+                        />
+
+                        {/* Patterns Panel */}
+                        <PatternsPanel
+                            selectedSystems={selectedSystems}
+                            theme={currentTheme}
+                            isMobile={isMobile}
+                        />
+
+                        {/* Footer */}
+                        <div style={{ marginTop: 60, paddingTop: 20, borderTop: `1px solid ${currentTheme.border}`, textAlign: 'center', fontSize: isMobile ? 12 : 14, color: currentTheme.textSecondary }}>
+                            <p style={{ margin: '0 0 8px 0' }}>
+                                Based on "9 Questions for System Design Interviews" by @rauljuncoV
+                            </p>
+                            <p style={{ margin: '0 0 8px 0' }}>
+                                Scores are approximate and meant for interview preparation, not absolute truth.
+                            </p>
+                            <p style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                                <span>Built by @tslava</span>
+                                <a
+                                    href="https://github.com/tslava"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="GitHub Profile"
+                                    style={{
+                                        color: currentTheme.text,
+                                        textDecoration: 'none',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        transition: 'opacity 0.2s ease'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
+                                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'block' }}>
+                                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                                    </svg>
+                                </a>
+                                <a
+                                    href="https://www.linkedin.com/in/tslava/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="LinkedIn Profile"
+                                    style={{
+                                        color: currentTheme.text,
+                                        textDecoration: 'none',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        transition: 'opacity 0.2s ease'
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
+                                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                                >
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'block' }}>
+                                        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                                    </svg>
+                                </a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // ========== RENDER ==========
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
