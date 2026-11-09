@@ -198,4 +198,4 @@ MIT License - feel free to use this project for learning, teaching, or any other
 
 ---
 
-Built by [Wiaczeslaw Cyunczyk](https://cyunczyk.dev)
+Built by [Wiaczeslaw Cyunczyk](https://tslava.dev)
