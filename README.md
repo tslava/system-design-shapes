@@ -1,12 +1,12 @@
 # System Design Shapes
 
-**Interactive visualization comparing 20 common system design patterns across 9 architectural dimensions**
+**See a system design problem as a shape.** An interactive radar chart that scores 20 classic interview systems (URL shortener, payments, chat, video streaming and more) on 9 architecture dimensions, with patterns and tool picks for each one.
 
-An educational tool for system design interview preparation that visualizes how different systems (URL shorteners, payment systems, social media feeds, etc.) compare across critical architecture dimensions like scale, consistency, latency, and more.
+**[▶ Open the live demo](https://tslava.github.io/system-design-shapes/)**
 
-## 🌐 Live Demo
+[![System Design Shapes: radar chart of a URL shortener across 9 dimensions](docs/screenshot.png)](https://tslava.github.io/system-design-shapes/)
 
-**[View Live Application →](https://tslava.github.io/system-design-shapes/)**
+**Stack:** a single `index.html` · React 18 · D3 7 · no build step · GitHub Pages
 
 ## 🎯 Features
 
@@ -23,7 +23,7 @@ An educational tool for system design interview preparation that visualizes how 
 
 ### Option 1: Use the Live Demo
 
-Simply visit the [live demo link](#) and start exploring!
+Simply visit the [live demo](https://tslava.github.io/system-design-shapes/) and start exploring!
 
 ### Option 2: Run Locally
 
@@ -195,3 +195,7 @@ MIT License - feel free to use this project for learning, teaching, or any other
 ---
 
 **Made for system design interview preparation** | **No build tools, just open and learn!**
+
+---
+
+Built by [Wiaczeslaw Cyunczyk](https://cyunczyk.dev)
